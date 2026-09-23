@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: henriquemod/forkspan
-          ref: abc3ba95c1976a3e024cb8e7fa90c54709e46d31
+          ref: 942c149925cb4018d53a636e333df56575637bdf
           token: ${{ secrets.FORKSPAN_SOURCE_TOKEN }}
           persist-credentials: false
           path: source
@@ -81,5 +81,5 @@ jobs:
         run: |
           gh release create sandbox-v0.1.0 --repo Forkspan/forkspan-cli --target main \
             --title 'Forkspan CLI 0.1.0' \
-            --notes 'Signed Linux and macOS sandbox service releases for x86-64 and ARM64. Source revision: abc3ba95c1976a3e024cb8e7fa90c54709e46d31.' \
+            --notes 'Signed Linux and macOS sandbox service releases for x86-64 and ARM64. Source revision: 942c149925cb4018d53a636e333df56575637bdf.' \
             dist/*
