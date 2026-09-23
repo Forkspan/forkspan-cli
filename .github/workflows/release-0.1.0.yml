@@ -1,0 +1,85 @@
+name: publish Forkspan CLI 0.1.0
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate:
+    environment: release
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            target: linux-x86_64
+          - runner: ubuntu-22.04-arm
+            target: linux-aarch64
+          - runner: macos-15
+            target: macos-aarch64
+          - runner: macos-15-intel
+            target: macos-x86_64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: henriquemod/forkspan
+          ref: abc3ba95c1976a3e024cb8e7fa90c54709e46d31
+          token: ${{ secrets.FORKSPAN_SOURCE_TOKEN }}
+          persist-credentials: false
+          path: source
+      - uses: astral-sh/setup-uv@v5
+      - name: Use OpenSSL 3 for macOS signatures
+        if: runner.os == 'macOS'
+        run: |
+          brew install openssl@3
+          echo "$(brew --prefix openssl@3)/bin" >> "$GITHUB_PATH"
+      - name: Install rustup when absent
+        run: |
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Build and verify signed release
+        working-directory: source
+        env:
+          SANDBOX_RELEASE_SIGNING_KEY: ${{ secrets.SANDBOX_RELEASE_SIGNING_KEY }}
+        run: |
+          test -n "$SANDBOX_RELEASE_SIGNING_KEY"
+          mkdir -p "$RUNNER_TEMP/key"
+          (umask 077; printf '%s\n' "$SANDBOX_RELEASE_SIGNING_KEY" > "$RUNNER_TEMP/key/release.key")
+          openssl pkey -in "$RUNNER_TEMP/key/release.key" -pubout -outform DER | tail -c 32 \
+            | od -An -v -tx1 | tr -d ' \n' > "$RUNNER_TEMP/release-key.pub"
+          SANDBOX_RELEASE_SIGNING_KEY_FILE="$RUNNER_TEMP/key/release.key" \
+            ./apps/sandbox/scripts/build-release.sh --out "$RUNNER_TEMP/candidate" --dist "$RUNNER_TEMP/dist"
+          rm -rf "$RUNNER_TEMP/key"
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            docker build -t forkspan-clean-host -f apps/sandbox/scripts/clean-host.Dockerfile apps/sandbox/scripts
+            ./apps/sandbox/scripts/check-release.sh --case clean-install --container-image forkspan-clean-host \
+              --candidate "$RUNNER_TEMP/candidate" --release-key "$RUNNER_TEMP/release-key.pub"
+          else
+            uv run --no-project --python 3.12 python apps/sandbox/packaging/build_payload.py --arch host --verify
+            "$RUNNER_TEMP/candidate/forkspan" --version
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forkspan-cli-${{ matrix.target }}
+          path: ${{ runner.temp }}/dist/*
+  publish:
+    needs: candidate
+    environment: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: forkspan-cli-*
+          merge-multiple: true
+          path: dist
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create sandbox-v0.1.0 --repo Forkspan/forkspan-cli --target main \
+            --title 'Forkspan CLI 0.1.0' \
+            --notes 'Signed Linux and macOS sandbox service releases for x86-64 and ARM64. Source revision: abc3ba95c1976a3e024cb8e7fa90c54709e46d31.' \
+            dist/*
