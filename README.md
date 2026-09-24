@@ -4,7 +4,7 @@ Forkspan CLI runs the sandbox service on a machine you control. The command is `
 This public repository distributes signed Linux and macOS releases. Source development takes
 place in the Forkspan application repository.
 
-## Download version 0.1.0
+## Download the latest release
 
 Choose a target matching your machine: `linux-x86_64`, `linux-aarch64`,
 `macos-x86_64`, or `macos-aarch64`. Linux needs systemd and Docker; macOS needs
@@ -12,7 +12,7 @@ Docker and a logged-in user session. The CLI also needs `git` and `df` on the ho
 
 ```sh
 target=linux-x86_64 # change this for your machine
-base=https://github.com/Forkspan/forkspan-cli/releases/download/sandbox-v0.1.0
+base=https://github.com/Forkspan/forkspan-cli/releases/latest/download
 curl -fLO "$base/forkspan-cli-$target.tar.gz"
 curl -fLo release.json "$base/forkspan-cli-$target.release.json"
 curl -fLo release.json.sig "$base/forkspan-cli-$target.release.json.sig"
